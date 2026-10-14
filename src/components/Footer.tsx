@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { ShieldCheck, Award, Lock, HelpCircle } from 'lucide-react';
 
