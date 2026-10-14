@@ -6,8 +6,9 @@ import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
-    const ipAddress = req.headers.get('x-forwarded-for') || 'unknown-ip';
-    const rateCheck = checkRateLimit(`register_${ipAddress}`, { limit: 5, windowSeconds: 60 });
+    const ipAddress = req.headers.get('x-forwarded-for') || undefined;
+    const userAgent = req.headers.get('user-agent') || undefined;
+    const rateCheck = checkRateLimit(`register_${ipAddress ?? 'unknown-ip'}`, { limit: 5, windowSeconds: 60 });
 
     if (!rateCheck.allowed) {
       return NextResponse.json(
@@ -49,8 +50,6 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-    const ipAddress = req.headers.get('x-forwarded-for') || undefined;
-    const userAgent = req.headers.get('user-agent') || undefined;
 
     // Create user and wallet in a transaction
     const newUser = await prisma.$transaction(async (tx) => {

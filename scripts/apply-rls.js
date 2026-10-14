@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { Client } = require('pg');
 
-// Load .env
+// Load .env manually
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   fs.readFileSync(envPath, 'utf-8').split('\n').forEach(line => {
@@ -19,40 +20,99 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Strip sslmode from connection string so we can supply ssl options manually
+function getConnString() {
+  let url = process.env.DATABASE_URL || '';
+  url = url.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
+  return url;
+}
+
+function newClient() {
+  return new Client({
+    connectionString: getConnString(),
+    ssl: { rejectUnauthorized: false },
+  });
+}
+
+async function runStatement(sql, label) {
+  const client = newClient();
+  await client.connect();
+  try {
+    await client.query(sql);
+    console.log(`  ✅ ${label}`);
+  } catch (err) {
+    if (err.message.includes('already exists') || err.message.includes('duplicate')) {
+      console.log(`  ⚠️  Already applied (skipped): ${label}`);
+    } else {
+      console.warn(`  ⚠️  Warning on: ${label}`);
+      console.warn(`     ${err.message}`);
+    }
+  } finally {
+    await client.end();
+  }
+}
 
 async function applyRLS() {
-  console.log('🔒 Applying Row Level Security & Access Policies to Supabase...');
-  const sqlFile = path.join(__dirname, '..', 'prisma', 'migrations', 'enable_rls_and_policies.sql');
-  const sql = fs.readFileSync(sqlFile, 'utf-8');
+  console.log('\n🔒 Applying Row Level Security & Access Policies to Supabase...\n');
 
-  // Strip comments first
-  const cleanSql = sql
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/--.*$/gm, '');
+  const tables = [
+    'AdminAuditLog', 'Comment', 'CommentReport', 'GameConfig',
+    'GameEntry', 'GameResult', 'Notification', 'PaymentTransaction',
+    'PaymentWebhookEvent', 'PrizeClaim', 'Session', 'User',
+    'WalletAccount', 'WalletLedgerEntry',
+  ];
 
-  const statements = cleanSql
-    .split(';')
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-
-  for (const statement of statements) {
-    try {
-      await prisma.$executeRawUnsafe(statement);
-    } catch (err) {
-      console.warn(`Warning on statement: ${statement.substring(0, 60)}...`);
-      console.warn(`  ${err.message}`);
-    }
+  // Step 1: Enable RLS on all tables
+  console.log('--- Enabling RLS ---');
+  for (const table of tables) {
+    await runStatement(
+      `ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY;`,
+      `ENABLE RLS: ${table}`
+    );
   }
 
-  console.log('✅ RLS and Policies applied successfully.');
+  // Step 2: Force RLS
+  console.log('\n--- Forcing RLS ---');
+  for (const table of tables) {
+    await runStatement(
+      `ALTER TABLE "${table}" FORCE ROW LEVEL SECURITY;`,
+      `FORCE RLS: ${table}`
+    );
+  }
+
+  // Step 3: Revoke anon write access on financial tables
+  console.log('\n--- Revoking anon write access ---');
+  const financialTables = ['PaymentTransaction', 'WalletAccount', 'WalletLedgerEntry', 'PrizeClaim', 'GameEntry'];
+  for (const table of financialTables) {
+    await runStatement(
+      `REVOKE INSERT, UPDATE, DELETE ON "${table}" FROM anon;`,
+      `REVOKE anon write: ${table}`
+    );
+  }
+
+  // Step 4: Full-access policy for postgres (service role)
+  console.log('\n--- Applying service-role full-access policies ---');
+  for (const table of tables) {
+    await runStatement(
+      `DO $$ BEGIN
+         IF NOT EXISTS (
+           SELECT 1 FROM pg_policies
+           WHERE tablename = '${table}' AND policyname = 'service_role_full_access'
+         ) THEN
+           CREATE POLICY service_role_full_access ON "${table}"
+             TO postgres USING (true) WITH CHECK (true);
+         END IF;
+       END $$;`,
+      `SERVICE_ROLE POLICY: ${table}`
+    );
+  }
+
+  console.log('\n✅ RLS and Policies applied successfully!\n');
 }
 
 applyRLS()
   .then(() => process.exit(0))
   .catch(err => {
-    console.error('Failed to apply RLS:', err);
+    console.error('❌ Failed to apply RLS:', err.message);
     process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+  });
