@@ -19,9 +19,10 @@ export async function POST(req: Request) {
     }
 
     const event = JSON.parse(rawBody);
-    const eventId = String(event.id || `${event.event}_${event.data?.reference || Date.now()}`);
     const eventType = event.event || 'unknown';
     const reference = event.data?.reference;
+    // Deterministic eventId: NEVER uses Date.now() so webhook retries are properly recognized
+    const eventId = String(event.id || `${eventType}_${reference || 'unknown'}`);
 
     // 2. Idempotency Check in PaymentWebhookEvent
     const existingEvent = await prisma.paymentWebhookEvent.findUnique({
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     // 3. Process Charge Success Event
     if (eventType === 'charge.success' && reference) {
       await prisma.$transaction(async (tx) => {
-        // Record event
+        // Record event idempotently
         await tx.paymentWebhookEvent.upsert({
           where: { eventId },
           update: { isProcessed: true },
@@ -49,14 +50,38 @@ export async function POST(req: Request) {
           },
         });
 
-        // Update payment transaction if not yet marked as SUCCESS
+        // Locate existing payment transaction
         const paymentTx = await tx.paymentTransaction.findUnique({
           where: { reference },
         });
 
-        if (paymentTx && paymentTx.status !== 'SUCCESS') {
-          await tx.paymentTransaction.update({
-            where: { id: paymentTx.id },
+        if (paymentTx && paymentTx.status === 'PENDING') {
+          // Fraud Prevention: Validate expected amount and currency
+          const expectedAmountCents = Number(paymentTx.amountCents);
+          const receivedAmountCents = Number(event.data?.amount);
+
+          if (receivedAmountCents !== expectedAmountCents) {
+            console.error(
+              `🚨 WEBHOOK FRAUD ALERT: Amount mismatch on ref ${reference}. Expected ${expectedAmountCents}, received ${receivedAmountCents}`
+            );
+            await tx.paymentTransaction.update({
+              where: { id: paymentTx.id },
+              data: {
+                status: 'FAILED',
+                rawWebhookResponse: rawBody,
+              },
+            });
+            return;
+          }
+
+          if (event.data?.currency && event.data.currency.toUpperCase() !== paymentTx.currency.toUpperCase()) {
+            console.error(`🚨 WEBHOOK ALERT: Currency mismatch on ref ${reference}.`);
+            return;
+          }
+
+          // Atomic conditional update ensures only ONE concurrent worker can transition PENDING -> SUCCESS
+          const updateResult = await tx.paymentTransaction.updateMany({
+            where: { id: paymentTx.id, status: 'PENDING' },
             data: {
               status: 'SUCCESS',
               paystackReference: String(event.data?.id || reference),
@@ -65,7 +90,12 @@ export async function POST(req: Request) {
             },
           });
 
-          // If deposit, credit wallet
+          if (updateResult.count === 0) {
+            // Already settled concurrently by user callback
+            return;
+          }
+
+          // If deposit, credit wallet and record ledger entry with harmonized deterministic reference
           if (paymentTx.purpose === 'WALLET_DEPOSIT') {
             const wallet = await tx.walletAccount.findUnique({
               where: { userId: paymentTx.userId },
@@ -80,6 +110,7 @@ export async function POST(req: Request) {
                 data: { balanceCents: balanceAfter },
               });
 
+              // Harmonized reference matches verify route: TCPI-LEDGER-DEP-${reference}
               await tx.walletLedgerEntry.create({
                 data: {
                   walletAccountId: wallet.id,
@@ -87,7 +118,7 @@ export async function POST(req: Request) {
                   amountCents: paymentTx.amountCents,
                   balanceBeforeCents: balanceBefore,
                   balanceAfterCents: balanceAfter,
-                  reference: `TCPI-WH-DEP-${reference}`,
+                  reference: `TCPI-LEDGER-DEP-${reference}`,
                   reason: `Deposit settled via webhook: ${reference}`,
                 },
               });

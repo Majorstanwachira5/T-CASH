@@ -18,9 +18,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (user.status === 'SUSPENDED') {
+    if (user.status === 'SUSPENDED' || (user as any).deletedAt) {
       return NextResponse.json(
-        { success: false, message: 'Your account is suspended and cannot submit entries' },
+        { success: false, message: 'Your account is inactive or suspended and cannot submit entries' },
         { status: 403 }
       );
     }
@@ -125,30 +125,31 @@ export async function POST(req: Request) {
           costCents = gameConfig.repeatCreditCents;
         }
 
-        const wallet = await tx.walletAccount.findUnique({
-          where: { userId: user.id },
-        });
+        // Atomic conditional decrement in PostgreSQL to prevent concurrent race conditions
+        const updatedWallets = await tx.$queryRaw<Array<{ id: string; balanceCents: bigint }>>`
+          UPDATE "WalletAccount"
+          SET "balanceCents" = "balanceCents" - ${costCents}, "updatedAt" = NOW()
+          WHERE "userId" = ${user.id} AND "balanceCents" >= ${costCents}
+          RETURNING id, "balanceCents";
+        `;
 
-        if (!wallet || wallet.balanceCents < costCents) {
+        if (!updatedWallets || updatedWallets.length === 0) {
+          const currentWallet = await tx.walletAccount.findUnique({ where: { userId: user.id } });
           throw new Error(
             `Insufficient wallet balance. Required: ${Number(costCents) / 100} KES, Available: ${
-              wallet ? Number(wallet.balanceCents) / 100 : 0
+              currentWallet ? Number(currentWallet.balanceCents) / 100 : 0
             } KES`
           );
         }
 
-        const balanceBefore = wallet.balanceCents;
-        const balanceAfter = balanceBefore - costCents;
+        const walletRecord = updatedWallets[0];
+        const balanceAfter = walletRecord.balanceCents;
+        const balanceBefore = balanceAfter + costCents;
 
-        await tx.walletAccount.update({
-          where: { id: wallet.id },
-          data: { balanceCents: balanceAfter },
-        });
-
-        const ledgerRef = `TCPI-LEDGER-DEBIT-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+        const ledgerRef = `TCPI-LEDGER-DEBIT-${idempotencyKey}`;
         await tx.walletLedgerEntry.create({
           data: {
-            walletAccountId: wallet.id,
+            walletAccountId: walletRecord.id,
             transactionType:
               paymentMethod === 'REPEAT_CREDIT'
                 ? 'DEBIT_REPEAT_CREDIT'

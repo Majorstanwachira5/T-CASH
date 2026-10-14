@@ -2,9 +2,23 @@ import { NextResponse } from 'next/server';
 import { prisma, serializeBigInt } from '@/lib/prisma';
 import { verifyPassword, createSession, SESSION_COOKIE } from '@/lib/auth';
 import { loginSchema } from '@/lib/validations';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
+    const ipAddress = req.headers.get('x-forwarded-for') || 'unknown-ip';
+    const rateCheck = checkRateLimit(`login_${ipAddress}`, { limit: 5, windowSeconds: 60 });
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Too many login attempts. Please wait ${rateCheck.retryAfterSeconds} seconds before trying again.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const parseResult = loginSchema.safeParse(body);
 
@@ -24,7 +38,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return NextResponse.json(
         { success: false, message: 'Invalid email or password' },
         { status: 401 }

@@ -84,7 +84,7 @@ export async function getAuthUser() {
       return null;
     }
 
-    if (session.user.status === 'SUSPENDED') {
+    if (session.user.status === 'SUSPENDED' || (session.user as any).deletedAt) {
       return null;
     }
 

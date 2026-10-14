@@ -30,6 +30,14 @@ export async function POST(req: Request) {
       );
     }
 
+    // Security: Enforce user ownership (or Admin/Auditor role)
+    if (transaction.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'AUDITOR') {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: You do not have permission to verify this transaction' },
+        { status: 403 }
+      );
+    }
+
     // Idempotency: If already verified, return cached success
     if (transaction.status === 'SUCCESS') {
       return NextResponse.json({
@@ -57,10 +65,43 @@ export async function POST(req: Request) {
       );
     }
 
+    // Fraud Prevention: Strictly validate amount and currency match the recorded transaction
+    const expectedAmountCents = Number(transaction.amountCents);
+    if (paystackData.amount !== expectedAmountCents) {
+      console.error(
+        `🚨 FRAUD ALERT: Payment amount mismatch for ref ${reference}. Expected ${expectedAmountCents} cents, provider returned ${paystackData.amount} cents.`
+      );
+      await prisma.paymentTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'FAILED',
+          rawWebhookResponse: JSON.stringify({
+            error: 'AMOUNT_MISMATCH',
+            expected: expectedAmountCents,
+            received: paystackData.amount,
+            paystackData,
+          }),
+        },
+      });
+
+      return NextResponse.json(
+        { success: false, message: 'Payment verification failed: Amount mismatch detected' },
+        { status: 400 }
+      );
+    }
+
+    if (paystackData.currency && paystackData.currency.toUpperCase() !== transaction.currency.toUpperCase()) {
+      return NextResponse.json(
+        { success: false, message: 'Payment verification failed: Currency mismatch detected' },
+        { status: 400 }
+      );
+    }
+
     // 3. Process Authoritative Verification within Database Transaction
     const updatedTransaction = await prisma.$transaction(async (tx) => {
-      const settledTx = await tx.paymentTransaction.update({
-        where: { id: transaction.id },
+      // Atomic conditional update ensures only ONE concurrent worker can transition PENDING -> SUCCESS
+      const updateResult = await tx.paymentTransaction.updateMany({
+        where: { id: transaction.id, status: 'PENDING' },
         data: {
           status: 'SUCCESS',
           paystackReference: String(paystackData.id || reference),
@@ -68,6 +109,11 @@ export async function POST(req: Request) {
           rawWebhookResponse: JSON.stringify(paystackData),
         },
       });
+
+      if (updateResult.count === 0) {
+        // Another concurrent request (e.g. webhook) already settled this payment!
+        return await tx.paymentTransaction.findUnique({ where: { id: transaction.id } });
+      }
 
       // If purpose is WALLET_DEPOSIT, credit wallet and record ledger entry
       if (transaction.purpose === 'WALLET_DEPOSIT') {
@@ -98,7 +144,7 @@ export async function POST(req: Request) {
         }
       }
 
-      return settledTx;
+      return await tx.paymentTransaction.findUnique({ where: { id: transaction.id } });
     });
 
     return NextResponse.json({

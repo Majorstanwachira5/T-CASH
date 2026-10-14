@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backups (prevent sensitive database snapshots from being committed)
+backups/*.json
