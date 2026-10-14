@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import NextLink from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   Gamepad2,
   Wallet,
@@ -25,7 +25,6 @@ interface AuthUser {
 }
 
 export default function Navbar() {
-  const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,10 +56,15 @@ export default function Navbar() {
   }, [pathname]);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore network errors on logout
+    }
     setUser(null);
-    router.push('/login');
-    router.refresh();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   return (
