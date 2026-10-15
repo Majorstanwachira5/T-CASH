@@ -42,3 +42,6 @@ next-env.d.ts
 
 # backups (prevent sensitive database snapshots from being committed)
 backups/*.json
+
+# kilo tooling
+.kilo/
