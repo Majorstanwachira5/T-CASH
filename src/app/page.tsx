@@ -58,9 +58,8 @@ export default async function HomePage() {
                 Win KSh 50,000 Grand Prize.
               </span>
             </h1>
-            <p className="max-w-xl mx-auto text-xs sm:text-sm text-slate-300 leading-normal">
-              Kenya’s transparent 10-box mystery draw. Match the published sequence for an instant
-              qualification payout. Authoritative server RNG with tamper-evident audit logs.
+            <p className="max-w-xl mx-auto text-xs sm:text-base font-medium text-slate-300 leading-normal">
+              Your KSh 50,000 is just one click away! Flip 10 mystery boxes, match the winning numbers, and get paid instantly to your M-PESA.
             </p>
           </div>
 
