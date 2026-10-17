@@ -1,8 +1,9 @@
-export const dynamic = 'force-dynamic';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ClientNavbar from '@/components/ClientNavbar';
 import Footer from '@/components/Footer';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'T CPI — 10-Box Mystery Number Draw | Win KSh 50,000',
