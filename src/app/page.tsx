@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma, serializeBigInt } from '@/lib/prisma';
 import { formatKshPlain } from '@/lib/currency';
+import { getAuthUser } from '@/lib/auth';
 import {
   Gamepad2,
   Trophy,
@@ -12,6 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import ActivityFeed from '@/components/ActivityFeed';
+import LiveCommunityChat from '@/components/LiveCommunityChat';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +30,10 @@ async function getPublishedGameConfig() {
 }
 
 export default async function HomePage() {
-  const config = await getPublishedGameConfig();
+  const [config, user] = await Promise.all([
+    getPublishedGameConfig(),
+    getAuthUser(),
+  ]);
   const targetNumbers: number[] = config?.targetNumbers
     ? JSON.parse(config.targetNumbers)
     : [7, 14, 21, 33, 42, 50, 63, 77, 88, 99];
@@ -136,9 +141,10 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Live Activity Feed Embed */}
-      <section className="max-w-4xl mx-auto px-3 sm:px-6 w-full">
+      {/* Live Activity Feed & Active Player Chat Stream */}
+      <section className="max-w-4xl mx-auto px-3 sm:px-6 w-full space-y-6">
         <ActivityFeed />
+        <LiveCommunityChat currentUser={user} />
       </section>
 
       {/* How It Works (Compact 3 Steps) */}

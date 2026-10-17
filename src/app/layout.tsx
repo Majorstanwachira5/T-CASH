@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ClientNavbar from '@/components/ClientNavbar';
 import Footer from '@/components/Footer';
+import LiveWinnerToast from '@/components/LiveWinnerToast';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,7 @@ export default function RootLayout({
         <ClientNavbar />
         <main className="flex-1 flex flex-col">{children}</main>
         <Footer />
+        <LiveWinnerToast />
       </body>
     </html>
   );
