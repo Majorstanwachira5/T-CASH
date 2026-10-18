@@ -89,7 +89,7 @@ export default function Footer() {
           </div>
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span className="text-emerald-400 font-medium">Server Online (Port 3005)</span>
+            <span className="text-emerald-400 font-medium">Secure & Encrypted</span>
           </div>
         </div>
       </div>
