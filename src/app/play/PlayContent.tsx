@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -54,6 +54,17 @@ export default function PlayContent() {
   const [phone, setPhone] = useState('');
   const [isWaitingForPin, setIsWaitingForPin] = useState(false);
   const [promptStatus, setPromptStatus] = useState<string | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleCancelPrompt = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setIsWaitingForPin(false);
+    setIsSubmitting(false);
+    setPromptStatus(null);
+  };
 
   // Game state
   const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'PAYSTACK' | 'REPEAT_CREDIT'>('PAYSTACK');
@@ -220,17 +231,23 @@ export default function PlayContent() {
       const reference = chargeData.reference;
       setPromptStatus('📱 STK prompt sent! Enter your M-PESA PIN on your phone...');
 
-      // 2. Poll transaction verification every 2.5s (up to 55s)
+      // 2. Poll transaction verification every 2s (maximum 30 seconds = 15 polls)
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
       let pollCount = 0;
-      const maxPolls = 22;
-      const pollTimer = setInterval(async () => {
+      const maxPolls = 15; // 15 polls * 2000ms = 30 seconds total
+      pollTimerRef.current = setInterval(async () => {
         pollCount++;
         try {
           const verifyRes = await fetch(`/api/payments/verify?reference=${encodeURIComponent(reference)}`);
           const verifyData = await verifyRes.json();
 
           if (verifyData.success && verifyData.status === 'SUCCESS') {
-            clearInterval(pollTimer);
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
             setIsWaitingForPin(false);
             setPromptStatus('Payment confirmed! Revealing numbers...');
             await executeVerifiedDraw(reference);
@@ -238,25 +255,34 @@ export default function PlayContent() {
           }
 
           if (verifyData.status === 'FAILED') {
-            clearInterval(pollTimer);
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
             setIsWaitingForPin(false);
             setIsSubmitting(false);
             setPromptStatus(null);
-            setErrorMsg('Payment was cancelled or failed on your phone.');
+            setErrorMsg('Payment was cancelled. You can enter your number to try again.');
+            setTimeout(() => setErrorMsg(''), 4000);
             return;
           }
 
           if (pollCount >= maxPolls) {
-            clearInterval(pollTimer);
+            // Automatically returns to inputting phone number after 30 seconds
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
             setIsWaitingForPin(false);
             setIsSubmitting(false);
             setPromptStatus(null);
-            setErrorMsg('Payment request timed out. If you entered your PIN, please refresh.');
+            setErrorMsg('Payment request timed out. You can enter your number to try again.');
+            setTimeout(() => setErrorMsg(''), 4000);
           }
         } catch (e) {
           console.error('Polling verification error:', e);
         }
-      }, 2500);
+      }, 2000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to prompt M-PESA payment';
       setErrorMsg(msg);
@@ -502,11 +528,20 @@ export default function PlayContent() {
             </div>
           </div>
 
-          {/* Active waiting for PIN alert */}
+          {/* Active waiting for PIN alert with instant Cancel button */}
           {isWaitingForPin && promptStatus && (
-            <div className="w-full sm:w-80 p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/60 text-emerald-300 text-xs flex items-center gap-2.5 animate-pulse shadow-lg">
-              <RefreshCw className="w-4 h-4 animate-spin text-emerald-400 flex-shrink-0" />
-              <span className="font-bold">{promptStatus}</span>
+            <div className="w-full sm:w-80 p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/60 text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg">
+              <div className="flex items-center gap-2 min-w-0">
+                <RefreshCw className="w-4 h-4 animate-spin text-emerald-400 flex-shrink-0" />
+                <span className="font-bold truncate">{promptStatus}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelPrompt}
+                className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-slate-700 cursor-pointer flex-shrink-0"
+              >
+                Cancel
+              </button>
             </div>
           )}
 
