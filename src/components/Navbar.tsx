@@ -159,7 +159,7 @@ export default function Navbar() {
                   className="flex items-center gap-1.5 bg-slate-900/90 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:border-emerald-500/60 transition-all"
                 >
                   <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Wallet:</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Withdraw:</span>
                   <span className="text-xs font-bold text-emerald-400">
                     {formatKsh(user.balanceCents)}
                   </span>

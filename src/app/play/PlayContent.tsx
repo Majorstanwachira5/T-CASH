@@ -324,23 +324,23 @@ export default function PlayContent() {
           </h1>
         </div>
 
-        {/* User Balance pill */}
+        {/* User Withdraw pill */}
         {user ? (
-          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-xl">
+          <Link
+            href="/dashboard#wallet"
+            className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+          >
             <Wallet className="w-3.5 h-3.5 text-emerald-400" />
             <div className="text-right">
-              <div className="text-[9px] text-slate-400 uppercase font-bold">Balance</div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold">Withdraw</div>
               <div className="text-xs sm:text-sm font-black text-emerald-400">
                 {formatKsh(user.balanceCents)}
               </div>
             </div>
-            <Link
-              href="/dashboard#wallet"
-              className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold ml-1 hover:bg-emerald-500/30"
-            >
+            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold ml-1 hover:bg-emerald-500/30">
               +
-            </Link>
-          </div>
+            </span>
+          </Link>
         ) : (
           <Link
             href="/login?redirect=/play"
