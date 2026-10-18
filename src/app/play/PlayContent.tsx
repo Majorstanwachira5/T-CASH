@@ -315,16 +315,6 @@ export default function PlayContent() {
             <span className="px-2 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase">
               Draw #{config?.version || 1}
             </span>
-            {user && (
-              <span className={`px-2 py-0.2 rounded border text-[10px] font-black uppercase ${
-                pastEntriesCount >= 10
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-              }`}>
-                Attempt #{pastEntriesCount + 1}
-                {pastEntriesCount >= 10 ? ' (Jackpot Eligible)' : ` (${10 - pastEntriesCount} to qualify)`}
-              </span>
-            )}
             <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-0.5">
               <ShieldCheck className="w-3 h-3 text-cyan-400" /> CSPRNG Verified
             </span>
@@ -465,21 +455,9 @@ export default function PlayContent() {
                 CONGRATULATIONS! QUALIFYING 10-OF-10 MATCH ({formatKsh(outcome.prizeAwardedCents)})
               </div>
             ) : (
-              <>
-                <div className="text-xs font-bold text-white">
-                  Drawn Result: Matched {outcome.matchedCount} of 10 positions
-                </div>
-                {outcome.attemptNumber !== undefined && outcome.attemptNumber < 10 && (
-                  <div className="text-[10px] text-cyan-300 font-semibold">
-                    🎯 Attempt {outcome.attemptNumber} of 10 — {10 - outcome.attemptNumber} more play{10 - outcome.attemptNumber !== 1 ? 's' : ''} until jackpot eligible!
-                  </div>
-                )}
-                {outcome.attemptNumber !== undefined && outcome.attemptNumber >= 10 && (
-                  <div className="text-[10px] text-amber-300 font-semibold">
-                    ⚡ You are now jackpot eligible! Next play could win KSh 50,000!
-                  </div>
-                )}
-              </>
+              <div className="text-xs font-bold text-white">
+                Drawn Result: Matched {outcome.matchedCount} of 10 positions
+              </div>
             )}
             <div className="text-[10px] text-slate-400 font-mono">
               Ref: {outcome.entryReference} • Rule #{outcome.ruleVersion}
