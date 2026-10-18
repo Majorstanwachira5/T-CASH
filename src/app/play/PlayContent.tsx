@@ -55,12 +55,21 @@ export default function PlayContent() {
   const [isWaitingForPin, setIsWaitingForPin] = useState(false);
   const [promptStatus, setPromptStatus] = useState<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleCancelPrompt = () => {
+  const cleanupTimers = () => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+  };
+
+  const handleCancelPrompt = () => {
+    cleanupTimers();
     setIsWaitingForPin(false);
     setIsSubmitting(false);
     setPromptStatus(null);
@@ -231,23 +240,25 @@ export default function PlayContent() {
       const reference = chargeData.reference;
       setPromptStatus('📱 STK prompt sent! Enter your M-PESA PIN on your phone...');
 
-      // 2. Poll transaction verification every 2s (maximum 30 seconds = 15 polls)
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
-      let pollCount = 0;
-      const maxPolls = 15; // 15 polls * 2000ms = 30 seconds total
+      // 2. Strict 30-Second Hard Timeout Timer: Automatically resets UI back to phone input
+      timeoutTimerRef.current = setTimeout(() => {
+        cleanupTimers();
+        setIsWaitingForPin(false);
+        setIsSubmitting(false);
+        setPromptStatus(null);
+        setErrorMsg('Payment timed out (30s). Please check your phone or try again.');
+        setTimeout(() => setErrorMsg(''), 4000);
+      }, 30000);
+
+      // 3. Gentle polling every 4 seconds (prevents database overload: max 7 requests across 30s)
       pollTimerRef.current = setInterval(async () => {
-        pollCount++;
         try {
           const verifyRes = await fetch(`/api/payments/verify?reference=${encodeURIComponent(reference)}`);
+          if (!verifyRes.ok && verifyRes.status !== 400) return;
           const verifyData = await verifyRes.json();
 
-          if (verifyData.success && verifyData.status === 'SUCCESS') {
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
+          if (verifyData.status === 'SUCCESS' || verifyData.success) {
+            cleanupTimers();
             setIsWaitingForPin(false);
             setPromptStatus('Payment confirmed! Revealing numbers...');
             await executeVerifiedDraw(reference);
@@ -255,35 +266,20 @@ export default function PlayContent() {
           }
 
           if (verifyData.status === 'FAILED') {
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
+            cleanupTimers();
             setIsWaitingForPin(false);
             setIsSubmitting(false);
             setPromptStatus(null);
-            setErrorMsg('Payment was cancelled. You can enter your number to try again.');
+            setErrorMsg(verifyData.message || 'Payment was cancelled or failed on your phone.');
             setTimeout(() => setErrorMsg(''), 4000);
             return;
-          }
-
-          if (pollCount >= maxPolls) {
-            // Automatically returns to inputting phone number after 30 seconds
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
-            setIsWaitingForPin(false);
-            setIsSubmitting(false);
-            setPromptStatus(null);
-            setErrorMsg('Payment request timed out. You can enter your number to try again.');
-            setTimeout(() => setErrorMsg(''), 4000);
           }
         } catch (e) {
           console.error('Polling verification error:', e);
         }
-      }, 2000);
+      }, 4000);
     } catch (err: unknown) {
+      cleanupTimers();
       const msg = err instanceof Error ? err.message : 'Failed to prompt M-PESA payment';
       setErrorMsg(msg);
       setIsSubmitting(false);
