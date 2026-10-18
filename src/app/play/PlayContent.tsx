@@ -184,80 +184,26 @@ export default function PlayContent() {
     const idempotencyKey = `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     try {
-      if (paymentMethod === 'PAYSTACK') {
-        const initRes = await fetch('/api/payments/initialize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amountKsh: 100,
-            purpose: 'GAME_ENTRY',
-            idempotencyKey,
-          }),
-        });
-        const initData = await initRes.json();
-        if (!initData.success) {
-          throw new Error(initData.message || 'Payment initialization failed');
-        }
-
-        const paystackRef = initData.data.reference;
-
-        // Check if Paystack inline script is active to prompt M-PESA in-place
-        if (typeof window !== 'undefined' && (window as any).PaystackPop) {
-          const handler = (window as any).PaystackPop.setup({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_7e4c8c9b8d512a4fc9fadef583d01118101e1933',
-            email: user.email,
-            amount: 10000, // 100 KES in cents
-            currency: 'KES',
-            ref: paystackRef,
-            channels: ['mobile_money', 'card'],
-            metadata: {
-              custom_fields: [
-                {
-                  display_name: 'Game Entry',
-                  variable_name: 'game_entry',
-                  value: `Draw #${config?.version || 1}`,
-                },
-              ],
-            },
-            onClose: () => {
-              setIsSubmitting(false);
-            },
-            callback: async (response: { reference: string }) => {
-              // Confirmed payment! Reveal numbers immediately
-              await executeVerifiedDraw(response.reference || paystackRef);
-            },
-          });
-          handler.openIframe();
-          return;
-        }
-
-        // Redirect checkout fallback
-        window.location.href = initData.data.authorizationUrl;
-        return;
-      }
-
-      const playRes = await fetch('/api/game/play', {
+      // Direct M-PESA STK Payment Initialization on backend
+      const initRes = await fetch('/api/payments/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentMethod,
+          amountKsh: 100,
+          purpose: 'GAME_ENTRY',
           idempotencyKey,
         }),
       });
-
-      const playData = await playRes.json();
-      if (!playData.success) {
-        throw new Error(playData.message || 'Draw execution failed');
+      const initData = await initRes.json();
+      if (!initData.success || !initData.data?.authorizationUrl) {
+        throw new Error(initData.message || 'Payment initialization failed');
       }
 
-      const result: GameEntryOutcome = playData.entry;
-      setOutcome(result);
-      animateReveal(result.generatedNumbers);
-
-      // Refresh user balance & entries count
-      await loadData();
+      // Seamless direct navigation to Paystack Official Checkout (Prompts M-PESA STK)
+      window.location.href = initData.data.authorizationUrl;
+      return;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to authorize draw';
+      const msg = err instanceof Error ? err.message : 'Failed to initialize payment';
       setErrorMsg(msg);
       setIsSubmitting(false);
     }
@@ -470,110 +416,34 @@ export default function PlayContent() {
           </div>
         )}
 
-        {/* Compact Controls & Payment Selector */}
-        <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
-          <div className="grid grid-cols-3 gap-2">
-            {/* Wallet button */}
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('WALLET')}
-              disabled={isSubmitting}
-              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                paymentMethod === 'WALLET'
-                  ? 'bg-emerald-500/15 border-emerald-400 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}
-            >
-              <Wallet className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold truncate">Wallet</div>
-                <div className="text-[9px] text-slate-400">
-                  {config ? formatKshPlain(config.entryPriceCents) : 'KSh 100'}
-                </div>
-              </div>
-            </button>
-
-            {/* Repeat credit button */}
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('REPEAT_CREDIT')}
-              disabled={isSubmitting || !hasEnteredBefore}
-              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                paymentMethod === 'REPEAT_CREDIT'
-                  ? 'bg-amber-500/15 border-amber-400 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 disabled:opacity-40'
-              }`}
-            >
-              <RefreshCw className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold text-amber-400 truncate">Repeat</div>
-                <div className="text-[9px] text-slate-400">
-                  {config ? formatKshPlain(config.repeatCreditCents) : 'KSh 2'}
-                </div>
-              </div>
-            </button>
-
-            {/* Paystack button */}
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('PAYSTACK')}
-              disabled={isSubmitting}
-              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                paymentMethod === 'PAYSTACK'
-                  ? 'bg-cyan-500/15 border-cyan-400 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400'
-              }`}
-            >
-              <CreditCard className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold text-cyan-400 truncate">M-PESA</div>
-                <div className="text-[9px] text-slate-400">Checkout</div>
-              </div>
-            </button>
-          </div>
-
-          {/* Primary Play Action Button */}
-          <div className="flex flex-col items-center gap-1">
-            <button
-              type="button"
-              id="tcpi-play-btn"
-              onClick={handlePlay}
-              disabled={isSubmitting}
-              className={`w-full sm:w-72 py-3 px-4 rounded-xl font-black text-sm tracking-wide shadow-xl flex items-center justify-center gap-2 transition-all ${
-                isSubmitting
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                  : paymentMethod === 'PAYSTACK'
-                  ? 'bg-gradient-to-r from-cyan-400 via-emerald-400 to-emerald-500 hover:from-cyan-300 hover:to-emerald-400 text-slate-950 hover:scale-102 active:scale-98'
-                  : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-emerald-500 hover:from-amber-300 hover:to-emerald-400 text-slate-950 hover:scale-102 active:scale-98'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>{paymentMethod === 'PAYSTACK' ? 'Opening M-PESA Prompt...' : 'Authorizing Draw...'}</span>
-                </>
-              ) : (
-                <>
-                  <Gamepad2 className="w-5 h-5" />
-                  <span>
-                    {paymentMethod === 'PAYSTACK'
-                      ? '💚 PAY KSh 100 via M-PESA'
-                      : paymentMethod === 'REPEAT_CREDIT'
-                      ? 'PLAY REPEAT (KSh 2)'
-                      : 'PLAY NOW (KSh 100)'}
-                  </span>
-                </>
-              )}
-            </button>
-            {paymentMethod === 'PAYSTACK' && (
-              <span className="text-[10px] text-cyan-400 font-semibold">
-                You will receive an M-PESA STK push on your phone
-              </span>
+        {/* Primary Play Action Button (Gold Design, Simplified UI) */}
+        <div className="pt-3 border-t border-slate-800/80 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            id="tcpi-play-btn"
+            onClick={handlePlay}
+            disabled={isSubmitting}
+            className={`w-full sm:w-80 py-4 px-6 rounded-2xl font-black text-base tracking-wider shadow-[0_0_30px_rgba(245,158,11,0.5)] border border-yellow-200/60 flex items-center justify-center gap-2.5 transition-all transform ${
+              isSubmitting
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-700'
+                : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 hover:scale-105 active:scale-95 cursor-pointer'
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
+                <span>Opening M-PESA Prompt...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5 text-slate-950 fill-slate-950" />
+                <span>PLACE 100 TO WIN</span>
+              </>
             )}
-            <span className="text-[10px] text-slate-500">
-              Server-verified draw • All attempts tracked • Win only after 10 plays
-            </span>
-          </div>
+          </button>
+          <span className="text-xs text-amber-300 font-semibold flex items-center gap-1.5">
+            <span>💚</span> M-PESA STK prompt will be sent directly to your phone
+          </span>
         </div>
       </div>
 
