@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { prisma, serializeBigInt } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
 import {
-  generateCryptographicNumbers,
+  generateAuthoritativeGameNumbers,
   evaluateDraw,
   generateEntryReference,
 } from '@/lib/gameEngine';
+import { verifyPaystackTransaction } from '@/lib/paystack';
 import { gamePlaySchema } from '@/lib/validations';
 
 export async function POST(req: Request) {
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
         }
 
         // Verify that payment transaction exists, belongs to this user, is successful, and not already used
-        const paymentTx = await tx.paymentTransaction.findUnique({
+        let paymentTx = await tx.paymentTransaction.findUnique({
           where: { reference: paymentReference },
           include: { gameEntry: true },
         });
@@ -102,12 +103,35 @@ export async function POST(req: Request) {
           throw new Error('Payment transaction belongs to another account');
         }
 
-        if (paymentTx.status !== 'SUCCESS') {
-          throw new Error('Payment transaction has not been authoritatively confirmed as successful');
-        }
-
         if (paymentTx.gameEntry) {
           throw new Error('This payment transaction has already been used for an authorized entry');
+        }
+
+        // Real-time authoritative verification: if still pending, confirm directly with Paystack API
+        if (paymentTx.status === 'PENDING') {
+          const paystackData = await verifyPaystackTransaction(paymentReference);
+          if (paystackData.status !== 'success') {
+            await tx.paymentTransaction.update({
+              where: { id: paymentTx.id },
+              data: { status: 'FAILED', rawWebhookResponse: JSON.stringify(paystackData) },
+            });
+            throw new Error('Payment provider indicated transaction has not completed');
+          }
+
+          paymentTx = await tx.paymentTransaction.update({
+            where: { id: paymentTx.id },
+            data: {
+              status: 'SUCCESS',
+              paystackReference: String(paystackData.id || paymentReference),
+              verifiedAt: new Date(),
+              rawWebhookResponse: JSON.stringify(paystackData),
+            },
+            include: { gameEntry: true },
+          });
+        }
+
+        if (paymentTx.status !== 'SUCCESS') {
+          throw new Error('Payment transaction has not been authoritatively confirmed as successful');
         }
 
         associatedPaymentTxId = paymentTx.id;
@@ -168,14 +192,30 @@ export async function POST(req: Request) {
         throw new Error('Invalid payment method selected');
       }
 
-      // 4. Cryptographically Secure Server-Side Draw Execution
+      // 4. Authoritative Attempt Tracking & Business Rule Enforcement
+      // Rule 1: A user CANNOT win within their first 10 successful attempts (attempts 1 to 10).
+      // Rule 2: A user can win ONLY AFTER 10 successful attempts (attempt 11 onwards).
+      const pastSuccessfulEntriesCount = await tx.gameEntry.count({
+        where: {
+          userId: user.id,
+          status: { in: ['REVEALED', 'SETTLED', 'AUTHORIZED'] },
+        },
+      });
+
+      const pastWinCount = await tx.gameEntry.count({
+        where: {
+          userId: user.id,
+          isWinner: true,
+        },
+      });
+      const hasWonBefore = pastWinCount > 0;
+
       const { numbers: generatedNumbers, entropySeedHash } =
-        generateCryptographicNumbers(
-          gameConfig.totalPositions,
-          gameConfig.numberMin,
-          gameConfig.numberMax,
-          gameConfig.isUniqueRequired
-        );
+        generateAuthoritativeGameNumbers({
+          gameConfig,
+          pastSuccessfulEntriesCount,
+          hasWonBefore,
+        });
 
       // 5. Evaluate Matches Against Authoritative Target Configuration
       const { matchedIndices, matchedCount, isWinner, prizeAmountCents } =
@@ -249,6 +289,7 @@ export async function POST(req: Request) {
         isWinner,
         prizeAmountCents,
         targetNumbers: JSON.parse(gameConfig.targetNumbers),
+        attemptNumber: pastSuccessfulEntriesCount + 1,
       };
     });
 
@@ -267,6 +308,7 @@ export async function POST(req: Request) {
         prizeAwardedCents: entryResult.prizeAmountCents,
         ruleVersion: entryResult.entry.ruleVersion,
         createdAt: entryResult.entry.createdAt,
+        attemptNumber: entryResult.attemptNumber,
       }),
     });
   } catch (error: unknown) {

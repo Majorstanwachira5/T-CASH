@@ -41,6 +41,13 @@ export default function CallbackContent() {
           setSuccess(true);
           setMessage(data.message || 'Payment confirmed and verified.');
           setTransaction(data.transaction);
+
+          // If payment was for GAME_ENTRY, automatically navigate to /play to reveal the 10 numbers!
+          if (data.transaction?.purpose === 'GAME_ENTRY') {
+            setTimeout(() => {
+              window.location.href = `/play?paymentRef=${encodeURIComponent(reference)}&autoReveal=true`;
+            }, 1200);
+          }
         } else {
           setSuccess(false);
           setMessage(data.message || 'Payment verification could not be completed.');
@@ -95,10 +102,14 @@ export default function CallbackContent() {
 
           <div className="pt-2 flex flex-col gap-2">
             <Link
-              href="/play"
+              href={
+                transaction?.purpose === 'GAME_ENTRY'
+                  ? `/play?paymentRef=${encodeURIComponent(transaction.reference)}&autoReveal=true`
+                  : '/play'
+              }
               className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 font-black text-sm shadow-xl flex items-center justify-center gap-2 hover:scale-105 transition-all"
             >
-              <span>Enter Draw Now</span>
+              <span>{transaction?.purpose === 'GAME_ENTRY' ? 'Reveal 10 Numbers Now' : 'Go to Game'}</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link

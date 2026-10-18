@@ -53,6 +53,7 @@ export async function initializePaystackTransaction(params: {
   amountCents: bigint | number;
   reference: string;
   callbackUrl: string;
+  channels?: string[];
   metadata?: Record<string, unknown>;
 }): Promise<PaystackInitResponse> {
   const amountMinor = Number(params.amountCents);
@@ -78,10 +79,11 @@ export async function initializePaystackTransaction(params: {
     },
     body: JSON.stringify({
       email: params.email,
-      amount: amountMinor, // in minor currency units (cents)
+      amount: amountMinor, // in minor currency units (cents, e.g. 10000 = KSh 100)
       currency: 'KES',
       reference: params.reference,
       callback_url: params.callbackUrl,
+      channels: params.channels || ['mobile_money', 'card'],
       metadata: params.metadata,
     }),
   });

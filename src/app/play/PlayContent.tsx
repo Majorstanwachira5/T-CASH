@@ -40,6 +40,7 @@ interface GameEntryOutcome {
   isWinner: boolean;
   prizeAwardedCents: string | number;
   ruleVersion: number;
+  attemptNumber?: number;
   createdAt: string;
 }
 
@@ -50,7 +51,8 @@ export default function PlayContent() {
   const [loadingConfig, setLoadingConfig] = useState(true);
 
   // Game state
-  const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'PAYSTACK' | 'REPEAT_CREDIT'>('WALLET');
+  const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'PAYSTACK' | 'REPEAT_CREDIT'>('PAYSTACK');
+  const [pastEntriesCount, setPastEntriesCount] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [revealingIndex, setRevealingIndex] = useState<number>(-1);
@@ -82,8 +84,11 @@ export default function PlayContent() {
       }
 
       const histData = await histRes.json();
-      if (histData.success && histData.entries && histData.entries.length > 0) {
-        setHasEnteredBefore(true);
+      if (histData.success && histData.entries) {
+        setPastEntriesCount(histData.entries.length);
+        if (histData.entries.length > 0) {
+          setHasEnteredBefore(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -97,13 +102,72 @@ export default function PlayContent() {
     loadData();
   }, []);
 
+  // Set smart default payment method based on available wallet balance
   useEffect(() => {
+    if (!user) return;
+    const balance = Number(user.balanceCents || 0);
     if (hasEnteredBefore) {
-      setPaymentMethod('REPEAT_CREDIT');
+      if (balance >= 200) {
+        setPaymentMethod('REPEAT_CREDIT');
+      } else {
+        setPaymentMethod('PAYSTACK');
+      }
     } else {
-      setPaymentMethod('WALLET');
+      if (balance >= 10000) {
+        setPaymentMethod('WALLET');
+      } else {
+        setPaymentMethod('PAYSTACK');
+      }
     }
-  }, [hasEnteredBefore]);
+  }, [user, hasEnteredBefore]);
+
+  // Check URL parameters for seamless auto-reveal after Paystack redirect
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const refParam = params.get('paymentRef') || params.get('reference') || params.get('trxref');
+    const autoRevealParam = params.get('autoReveal');
+
+    if (refParam && (autoRevealParam === 'true' || autoRevealParam === '1')) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      executeVerifiedDraw(refParam);
+    }
+  }, []);
+
+  const executeVerifiedDraw = async (ref: string) => {
+    setIsSubmitting(true);
+    setErrorMsg('');
+    setDisplayedBoxes(Array(10).fill(null));
+    setRevealingIndex(-1);
+
+    try {
+      const playRes = await fetch('/api/game/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: 'PAYSTACK',
+          paymentReference: ref,
+          idempotencyKey: `entry_${ref}`,
+        }),
+      });
+
+      const playData = await playRes.json();
+      if (!playData.success) {
+        throw new Error(playData.message || 'Draw execution failed');
+      }
+
+      const result: GameEntryOutcome = playData.entry;
+      setOutcome(result);
+      animateReveal(result.generatedNumbers);
+
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to authorize draw';
+      setErrorMsg(msg);
+      setIsSubmitting(false);
+    }
+  };
 
   const handlePlay = async () => {
     if (!user) {
@@ -134,6 +198,40 @@ export default function PlayContent() {
         if (!initData.success) {
           throw new Error(initData.message || 'Payment initialization failed');
         }
+
+        const paystackRef = initData.data.reference;
+
+        // Check if Paystack inline script is active to prompt M-PESA in-place
+        if (typeof window !== 'undefined' && (window as any).PaystackPop) {
+          const handler = (window as any).PaystackPop.setup({
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_7e4c8c9b8d512a4fc9fadef583d01118101e1933',
+            email: user.email,
+            amount: 10000, // 100 KES in cents
+            currency: 'KES',
+            ref: paystackRef,
+            channels: ['mobile_money', 'card'],
+            metadata: {
+              custom_fields: [
+                {
+                  display_name: 'Game Entry',
+                  variable_name: 'game_entry',
+                  value: `Draw #${config?.version || 1}`,
+                },
+              ],
+            },
+            onClose: () => {
+              setIsSubmitting(false);
+            },
+            callback: async (response: { reference: string }) => {
+              // Confirmed payment! Reveal numbers immediately
+              await executeVerifiedDraw(response.reference || paystackRef);
+            },
+          });
+          handler.openIframe();
+          return;
+        }
+
+        // Redirect checkout fallback
         window.location.href = initData.data.authorizationUrl;
         return;
       }
@@ -156,13 +254,8 @@ export default function PlayContent() {
       setOutcome(result);
       animateReveal(result.generatedNumbers);
 
-      // Refresh user balance
-      const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (meData.authenticated) {
-        setUser(meData.user);
-      }
-      setHasEnteredBefore(true);
+      // Refresh user balance & entries count
+      await loadData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to authorize draw';
       setErrorMsg(msg);
@@ -197,6 +290,16 @@ export default function PlayContent() {
             <span className="px-2 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase">
               Draw #{config?.version || 1}
             </span>
+            {user && (
+              <span className={`px-2 py-0.2 rounded border text-[10px] font-black uppercase ${
+                pastEntriesCount >= 10
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+              }`}>
+                Attempt #{pastEntriesCount + 1}
+                {pastEntriesCount >= 10 ? ' (Jackpot Eligible)' : ` (${10 - pastEntriesCount} to qualify)`}
+              </span>
+            )}
             <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-0.5">
               <ShieldCheck className="w-3 h-3 text-cyan-400" /> CSPRNG Verified
             </span>
@@ -337,9 +440,21 @@ export default function PlayContent() {
                 CONGRATULATIONS! QUALIFYING 10-OF-10 MATCH ({formatKsh(outcome.prizeAwardedCents)})
               </div>
             ) : (
-              <div className="text-xs font-bold text-white">
-                Drawn Result: Matched {outcome.matchedCount} of 10 positions
-              </div>
+              <>
+                <div className="text-xs font-bold text-white">
+                  Drawn Result: Matched {outcome.matchedCount} of 10 positions
+                </div>
+                {outcome.attemptNumber !== undefined && outcome.attemptNumber < 10 && (
+                  <div className="text-[10px] text-cyan-300 font-semibold">
+                    🎯 Attempt {outcome.attemptNumber} of 10 — {10 - outcome.attemptNumber} more play{10 - outcome.attemptNumber !== 1 ? 's' : ''} until jackpot eligible!
+                  </div>
+                )}
+                {outcome.attemptNumber !== undefined && outcome.attemptNumber >= 10 && (
+                  <div className="text-[10px] text-amber-300 font-semibold">
+                    ⚡ You are now jackpot eligible! Next play could win KSh 50,000!
+                  </div>
+                )}
+              </>
             )}
             <div className="text-[10px] text-slate-400 font-mono">
               Ref: {outcome.entryReference} • Rule #{outcome.ruleVersion}
@@ -421,32 +536,42 @@ export default function PlayContent() {
           <div className="flex flex-col items-center gap-1">
             <button
               type="button"
+              id="tcpi-play-btn"
               onClick={handlePlay}
               disabled={isSubmitting}
               className={`w-full sm:w-72 py-3 px-4 rounded-xl font-black text-sm tracking-wide shadow-xl flex items-center justify-center gap-2 transition-all ${
                 isSubmitting
                   ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  : paymentMethod === 'PAYSTACK'
+                  ? 'bg-gradient-to-r from-cyan-400 via-emerald-400 to-emerald-500 hover:from-cyan-300 hover:to-emerald-400 text-slate-950 hover:scale-102 active:scale-98'
                   : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-emerald-500 hover:from-amber-300 hover:to-emerald-400 text-slate-950 hover:scale-102 active:scale-98'
               }`}
             >
               {isSubmitting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Authorizing Draw...</span>
+                  <span>{paymentMethod === 'PAYSTACK' ? 'Opening M-PESA Prompt...' : 'Authorizing Draw...'}</span>
                 </>
               ) : (
                 <>
                   <Gamepad2 className="w-5 h-5" />
                   <span>
-                    {paymentMethod === 'REPEAT_CREDIT'
+                    {paymentMethod === 'PAYSTACK'
+                      ? '💚 PAY KSh 100 via M-PESA'
+                      : paymentMethod === 'REPEAT_CREDIT'
                       ? 'PLAY REPEAT (KSh 2)'
                       : 'PLAY NOW (KSh 100)'}
                   </span>
                 </>
               )}
             </button>
+            {paymentMethod === 'PAYSTACK' && (
+              <span className="text-[10px] text-cyan-400 font-semibold">
+                You will receive an M-PESA STK push on your phone
+              </span>
+            )}
             <span className="text-[10px] text-slate-500">
-              CSPRNG execution validated on server • Guarded against duplicate requests
+              Server-verified draw • All attempts tracked • Win only after 10 plays
             </span>
           </div>
         </div>
