@@ -140,6 +140,66 @@ export async function verifyPaystackTransaction(
 }
 
 /**
+ * Formats any Kenyan phone number to the E.164 standard +254XXXXXXXXX required by Safaricom/Paystack
+ */
+export function formatKenyanPhone(phone: string): string {
+  const cleaned = phone.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('254') && cleaned.length === 12) return `+${cleaned}`;
+  if (cleaned.startsWith('0') && cleaned.length === 10) return `+254${cleaned.slice(1)}`;
+  if (cleaned.length === 9) return `+254${cleaned}`;
+  if (phone.startsWith('+254')) return phone.trim();
+  return `+${cleaned}`;
+}
+
+/**
+ * Initiates a Direct M-PESA STK Push Charge without leaving the website
+ */
+export async function chargePaystackMpesa(params: {
+  email: string;
+  phone: string;
+  amountCents: bigint | number;
+  reference: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{
+  status: boolean;
+  message: string;
+  data: {
+    status: string;
+    reference: string;
+    display_text?: string;
+  };
+}> {
+  const amountMinor = Number(params.amountCents);
+  const formattedPhone = formatKenyanPhone(params.phone);
+
+  const response = await fetch('https://api.paystack.co/charge', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: params.email,
+      amount: amountMinor, // in minor currency units (cents, e.g. 10000 = KSh 100)
+      currency: 'KES',
+      reference: params.reference,
+      mobile_money: {
+        phone: formattedPhone,
+        provider: 'mpesa',
+      },
+      metadata: params.metadata,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.status) {
+    throw new Error(data.message || 'Failed to initiate direct M-PESA payment');
+  }
+
+  return data;
+}
+
+/**
  * Cryptographically verifies Paystack Webhook HMAC SHA-512 signature
  */
 export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
@@ -150,3 +210,4 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
     .digest('hex');
   return hash === signature;
 }
+

@@ -47,8 +47,13 @@ interface GameEntryOutcome {
 export default function PlayContent() {
   const router = useRouter();
   const [config, setConfig] = useState<GameConfigData | null>(null);
-  const [user, setUser] = useState<{ id: string; email: string; fullName: string; balanceCents: string | number } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; fullName: string; balanceCents: string | number; phone?: string | null } | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+
+  // Direct M-PESA state
+  const [phone, setPhone] = useState('');
+  const [isWaitingForPin, setIsWaitingForPin] = useState(false);
+  const [promptStatus, setPromptStatus] = useState<string | null>(null);
 
   // Game state
   const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'PAYSTACK' | 'REPEAT_CREDIT'>('PAYSTACK');
@@ -79,6 +84,9 @@ export default function PlayContent() {
       const userData = await userRes.json();
       if (userData.authenticated && userData.user) {
         setUser(userData.user);
+        if (userData.user.phone) {
+          setPhone(userData.user.phone);
+        }
       } else {
         setUser(null);
       }
@@ -175,37 +183,86 @@ export default function PlayContent() {
       return;
     }
 
+    const cleanDigits = phone.replace(/[^0-9]/g, '');
+    if (!cleanDigits || cleanDigits.length < 8) {
+      setErrorMsg('Please enter your Safaricom M-PESA phone number above to receive the prompt.');
+      return;
+    }
+
     setErrorMsg('');
     setIsSubmitting(true);
     setOutcome(null);
     setDisplayedBoxes(Array(10).fill(null));
     setRevealingIndex(-1);
+    setIsWaitingForPin(true);
+    setPromptStatus('Sending M-PESA prompt to your phone...');
 
-    const idempotencyKey = `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const idempotencyKey = `direct_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     try {
-      // Direct M-PESA STK Payment Initialization on backend
-      const initRes = await fetch('/api/payments/initialize', {
+      // 1. Direct server-to-server STK push charge via Paystack
+      const chargeRes = await fetch('/api/payments/charge-mpesa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          phone: phone.trim(),
           amountKsh: 100,
           purpose: 'GAME_ENTRY',
           idempotencyKey,
         }),
       });
-      const initData = await initRes.json();
-      if (!initData.success || !initData.data?.authorizationUrl) {
-        throw new Error(initData.message || 'Payment initialization failed');
+
+      const chargeData = await chargeRes.json();
+      if (!chargeData.success) {
+        throw new Error(chargeData.message || 'Failed to trigger M-PESA prompt');
       }
 
-      // Seamless direct navigation to Paystack Official Checkout (Prompts M-PESA STK)
-      window.location.href = initData.data.authorizationUrl;
-      return;
+      const reference = chargeData.reference;
+      setPromptStatus('📱 STK prompt sent! Enter your M-PESA PIN on your phone...');
+
+      // 2. Poll transaction verification every 2.5s (up to 55s)
+      let pollCount = 0;
+      const maxPolls = 22;
+      const pollTimer = setInterval(async () => {
+        pollCount++;
+        try {
+          const verifyRes = await fetch(`/api/payments/verify?reference=${encodeURIComponent(reference)}`);
+          const verifyData = await verifyRes.json();
+
+          if (verifyData.success && verifyData.status === 'SUCCESS') {
+            clearInterval(pollTimer);
+            setIsWaitingForPin(false);
+            setPromptStatus('Payment confirmed! Revealing numbers...');
+            await executeVerifiedDraw(reference);
+            return;
+          }
+
+          if (verifyData.status === 'FAILED') {
+            clearInterval(pollTimer);
+            setIsWaitingForPin(false);
+            setIsSubmitting(false);
+            setPromptStatus(null);
+            setErrorMsg('Payment was cancelled or failed on your phone.');
+            return;
+          }
+
+          if (pollCount >= maxPolls) {
+            clearInterval(pollTimer);
+            setIsWaitingForPin(false);
+            setIsSubmitting(false);
+            setPromptStatus(null);
+            setErrorMsg('Payment request timed out. If you entered your PIN, please refresh.');
+          }
+        } catch (e) {
+          console.error('Polling verification error:', e);
+        }
+      }, 2500);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to initialize payment';
+      const msg = err instanceof Error ? err.message : 'Failed to prompt M-PESA payment';
       setErrorMsg(msg);
       setIsSubmitting(false);
+      setIsWaitingForPin(false);
+      setPromptStatus(null);
     }
   };
 
@@ -416,23 +473,59 @@ export default function PlayContent() {
           </div>
         )}
 
-        {/* Primary Play Action Button (Gold Design, Simplified UI) */}
-        <div className="pt-3 border-t border-slate-800/80 flex flex-col items-center gap-2">
+        {/* Primary Play Action & Direct M-PESA Phone Input */}
+        <div className="pt-3 border-t border-slate-800/80 flex flex-col items-center gap-3">
+          {/* Direct Phone Number Input Field */}
+          <div className="w-full sm:w-80 space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <label htmlFor="mpesa-phone-input" className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                M-PESA Phone Number
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                Instant STK Push
+              </span>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-400 font-black text-xs font-mono select-none">
+                🇰🇪 +254
+              </div>
+              <input
+                id="mpesa-phone-input"
+                type="tel"
+                placeholder="712 345 678"
+                value={phone.replace(/^\+254/, '').replace(/^254/, '')}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={isSubmitting || isWaitingForPin}
+                className="w-full pl-22 pr-4 py-3 rounded-xl bg-slate-950 border-2 border-emerald-500/50 text-white font-mono text-base font-bold placeholder:text-slate-600 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/40 transition-all shadow-inner disabled:opacity-60"
+              />
+            </div>
+          </div>
+
+          {/* Active waiting for PIN alert */}
+          {isWaitingForPin && promptStatus && (
+            <div className="w-full sm:w-80 p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/60 text-emerald-300 text-xs flex items-center gap-2.5 animate-pulse shadow-lg">
+              <RefreshCw className="w-4 h-4 animate-spin text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">{promptStatus}</span>
+            </div>
+          )}
+
+          {/* Primary Gold Play Action Button */}
           <button
             type="button"
             id="tcpi-play-btn"
             onClick={handlePlay}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isWaitingForPin}
             className={`w-full sm:w-80 py-4 px-6 rounded-2xl font-black text-base tracking-wider shadow-[0_0_30px_rgba(245,158,11,0.5)] border border-yellow-200/60 flex items-center justify-center gap-2.5 transition-all transform ${
-              isSubmitting
+              isSubmitting || isWaitingForPin
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-700'
                 : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 hover:scale-105 active:scale-95 cursor-pointer'
             }`}
           >
-            {isSubmitting ? (
+            {isSubmitting || isWaitingForPin ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
-                <span>Opening M-PESA Prompt...</span>
+                <span>Waiting for M-PESA PIN...</span>
               </>
             ) : (
               <>
@@ -442,7 +535,7 @@ export default function PlayContent() {
             )}
           </button>
           <span className="text-xs text-amber-300 font-semibold flex items-center gap-1.5">
-            <span>💚</span> M-PESA STK prompt will be sent directly to your phone
+            <span>💚</span> M-PESA STK prompt will appear on your phone screen
           </span>
         </div>
       </div>
