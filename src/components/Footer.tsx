@@ -18,7 +18,7 @@ export default function Footer() {
             </div>
             <p className="text-slate-400 text-xs leading-relaxed max-w-md">
               Kenya’s premier 10-box mystery number draw game. Match all ten ordered positions
-              to unlock the grand published prize of KSh 50,000. Verified outcomes with cryptographically
+              to unlock the grand published prize of KSh 100,000. Verified outcomes with cryptographically
               secure RNG and transparent tamper-evident audit trails.
             </p>
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-300">
@@ -32,7 +32,7 @@ export default function Footer() {
               </span>
               <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
                 <Award className="w-3 h-3 text-amber-400" />
-                KSh 50,000 Prize
+                KSh 100,000 Prize
               </span>
             </div>
           </div>

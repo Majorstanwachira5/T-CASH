@@ -222,7 +222,7 @@ export default function DashboardContent() {
               <Gamepad2 className="w-10 h-10 text-slate-600 mx-auto" />
               <h3 className="text-base font-bold text-white">No Game Entries Yet</h3>
               <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                Ready to unveil the 10 mystery numbers? Try your luck for the KSh 50,000 jackpot!
+                Ready to unveil the 10 mystery numbers? Try your luck for the KSh 100,000 jackpot!
               </p>
               <Link
                 href="/play"

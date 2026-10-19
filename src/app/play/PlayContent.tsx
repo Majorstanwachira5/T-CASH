@@ -356,7 +356,7 @@ export default function PlayContent() {
         <div className="flex items-center justify-between text-[11px] px-1">
           <span className="font-bold text-amber-400 flex items-center gap-1">
             <Trophy className="w-3 h-3" />
-            Targets for {config ? formatKshPlain(config.prizeAmountCents) : 'KSh 50,000'} Jackpot:
+            Targets for {config ? formatKshPlain(config.prizeAmountCents) : 'KSh 100,000'} Jackpot:
           </span>
           <span className="text-[10px] text-slate-400">Range: 1 – 99</span>
         </div>

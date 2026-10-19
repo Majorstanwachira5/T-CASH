@@ -245,7 +245,7 @@ export default function Navbar() {
               <span>Play Now (KSh 100)</span>
             </div>
             <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold">
-              KSh 50,000 Prize
+              KSh 100,000 Prize
             </span>
           </NextLink>
           <NextLink

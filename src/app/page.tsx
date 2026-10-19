@@ -55,11 +55,11 @@ export default async function HomePage() {
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
               Unveil Ten Numbers.{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400">
-                Win KSh 50,000 Grand Prize.
+                Win KSh 100,000 Grand Prize.
               </span>
             </h1>
             <p className="max-w-xl mx-auto text-xs sm:text-base font-medium text-slate-300 leading-normal">
-              Your KSh 50,000 is just one click away! Flip 10 mystery boxes, match the winning numbers, and get paid instantly to your M-PESA.
+              Your KSh 100,000 is just one click away! Flip 10 mystery boxes, match the winning numbers, and get paid instantly to your M-PESA.
             </p>
           </div>
 
@@ -77,7 +77,7 @@ export default async function HomePage() {
                 Grand Prize
               </div>
               <div className="text-sm sm:text-lg font-black text-amber-400 mt-0.5">
-                {config ? formatKshPlain(config.prizeAmountCents) : 'KSh 50,000'}
+                {config ? formatKshPlain(config.prizeAmountCents) : 'KSh 100,000'}
               </div>
             </div>
             <div className="p-2.5 sm:p-3 rounded-xl bg-slate-900/80 border border-slate-800">
@@ -116,7 +116,7 @@ export default async function HomePage() {
               Official Target Combination (Draw #{config?.version || 1})
             </h2>
             <p className="text-[11px] text-slate-400">
-              Match these 10 ordered numbers to win KSh 50,000.
+              Match these 10 ordered numbers to win KSh 100,000.
             </p>
           </div>
           <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
@@ -166,7 +166,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-            <div className="text-xs font-black text-cyan-400">3. Claim KSh 50,000</div>
+            <div className="text-xs font-black text-cyan-400">3. Claim KSh 100,000</div>
             <p className="text-[11px] text-slate-400 leading-normal">
               Match all 10 target positions for prompt official M-PESA disbursement.
             </p>

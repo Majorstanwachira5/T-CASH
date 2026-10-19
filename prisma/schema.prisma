@@ -154,7 +154,7 @@ model GameConfig {
   description       String       @default("10-Box Mystery Number Game")
   entryPriceCents   BigInt       @default(10000)   // KSh 100.00
   repeatCreditCents BigInt       @default(200)     // KSh 2.00
-  prizeAmountCents  BigInt       @default(5000000) // KSh 50,000.00
+  prizeAmountCents  BigInt       @default(10000000) // KSh 100,000.00
   totalPositions    Int          @default(10)      // Exactly 10 ordered boxes
   numberMin         Int          @default(1)
   numberMax         Int          @default(99)

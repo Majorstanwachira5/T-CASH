@@ -238,7 +238,7 @@ export default function ActivityFeed() {
             <strong className="text-white">Draw #1 Active</strong>
           </span>
           <span className="text-slate-600">•</span>
-          <span>Grand Prize: <strong className="text-amber-400">KSh 50,000</strong></span>
+          <span>Grand Prize: <strong className="text-amber-400">KSh 100,000</strong></span>
           <span className="text-slate-600 hidden sm:inline">•</span>
           <span className="hidden sm:inline">Repeat Entry: <strong className="text-emerald-400">KSh 2</strong></span>
         </div>

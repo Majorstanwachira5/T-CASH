@@ -1,6 +1,6 @@
 # T CPI — 10-Box Mystery Number Draw
 
-> Kenya's transparent, server-verified 10-box mystery draw. Match the published 10-number sequence to win the KSh 50,000 grand prize.
+> Kenya's transparent, server-verified 10-box mystery draw. Match the published 10-number sequence to win the KSh 100,000 grand prize.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.4.0-black?logo=next.js)](https://nextjs.org)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green?logo=supabase)](https://supabase.com)
@@ -111,7 +111,7 @@ npx prisma studio
 
 - **Entry:** KSh 100 per draw (via wallet or Paystack M-PESA)
 - **Repeat Entry:** KSh 2 for subsequent draws in same round
-- **Prize:** KSh 50,000 for matching all 10 ordered positions
+- **Prize:** KSh 100,000 for matching all 10 ordered positions
 - **RNG:** Server-side CSPRNG (SHA-256 seeded) — browser never decides outcomes
 - **Audit:** Every entry stores cryptographic seed hash for tamper-evident logs
 

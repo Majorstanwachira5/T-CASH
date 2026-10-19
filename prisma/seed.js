@@ -48,7 +48,7 @@ async function main() {
       description: 'Ten Mystery Number Ordered Match Draw',
       entryPriceCents: BigInt(10000),   // KSh 100.00
       repeatCreditCents: BigInt(200),    // KSh 2.00
-      prizeAmountCents: BigInt(5000000), // KSh 50,000.00
+      prizeAmountCents: BigInt(10000000), // KSh 100,000.00
       totalPositions: 10,
       numberMin: 1,
       numberMax: 99,
@@ -65,7 +65,7 @@ async function main() {
       description: 'Ten Mystery Number Ordered Match Draw',
       entryPriceCents: BigInt(10000),   // KSh 100.00
       repeatCreditCents: BigInt(200),    // KSh 2.00
-      prizeAmountCents: BigInt(5000000), // KSh 50,000.00
+      prizeAmountCents: BigInt(10000000), // KSh 100,000.00
       totalPositions: 10,
       numberMin: 1,
       numberMax: 99,
@@ -163,7 +163,7 @@ async function main() {
         matchedCount: 10,
         matchedPositions: JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
         isWinner: true,
-        prizeAwardedCents: BigInt(5000000), // KSh 50,000
+        prizeAwardedCents: BigInt(10000000), // KSh 100,000
         status: 'SETTLED',
         entropySeedHash: 'sha256_audit_seed_faith_8491_draw1',
         idempotencyKey: 'idemp_faith_win_8491',
@@ -187,7 +187,7 @@ async function main() {
         matchedCount: 10,
         matchedPositions: JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
         isWinner: true,
-        prizeAwardedCents: BigInt(5000000),
+        prizeAwardedCents: BigInt(10000000),
         status: 'SETTLED',
         entropySeedHash: 'sha256_audit_seed_dennis_3104_draw1',
         idempotencyKey: 'idemp_dennis_win_3104',
@@ -257,7 +257,7 @@ async function main() {
         matchedCount: 10,
         matchedPositions: JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
         isWinner: true,
-        prizeAwardedCents: BigInt(5000000),
+        prizeAwardedCents: BigInt(10000000),
         status: 'SETTLED',
         entropySeedHash: 'sha256_audit_seed_geoffrey_8113_draw1',
         idempotencyKey: 'idemp_geoffrey_win_8113',
@@ -273,7 +273,7 @@ async function main() {
     {
       userEmail: 'faith.mwangi@tcpi.co.ke',
       authorAlias: 'Faith M. (0712***849)',
-      content: 'Wueh!! Still can’t believe it! Matched all 10 numbers in Draw #1 and my 50k landed on M-PESA via Paystack in minutes. T CPI is 100% genuine!',
+      content: 'Wueh!! Still can’t believe it! Matched all 10 numbers in Draw #1 and my 100k landed on M-PESA via Paystack in minutes. T CPI is 100% genuine!',
       category: 'CONFIRMED_WIN',
       region: 'Rift Valley',
       isVerifiedWin: true,
@@ -315,7 +315,7 @@ async function main() {
     {
       userEmail: 'geoffrey.koech@tcpi.co.ke',
       authorAlias: 'Geoffrey K. (0725***811)',
-      content: 'Asante sana T CPI! 50,000 received directly in my Safaricom M-PESA. Kericho town is celebrating tonight!',
+      content: 'Asante sana T CPI! 100,000 received directly in my Safaricom M-PESA. Kericho town is celebrating tonight!',
       category: 'CONFIRMED_WIN',
       region: 'Rift Valley',
       isVerifiedWin: true,
@@ -348,7 +348,7 @@ async function main() {
     {
       userEmail: 'kelvin.kiprop@tcpi.co.ke',
       authorAlias: 'Kelvin K. (0701***938)',
-      content: 'Boom! 50k landed safely. Machakos winner here! Make sure your M-PESA name matches your profile name for instant payout.',
+      content: 'Boom! 100k landed safely. Machakos winner here! Make sure your M-PESA name matches your profile name for instant payout.',
       category: 'CONFIRMED_WIN',
       region: 'Eastern',
       isVerifiedWin: true,
@@ -372,7 +372,7 @@ async function main() {
     {
       userEmail: 'sharon.moraa@tcpi.co.ke',
       authorAlias: 'Sharon M. (0791***220)',
-      content: '50k in my wallet and withdrawn to M-PESA! Nakuru ladies we are winning! Thank you T CPI admin team.',
+      content: '100k in my wallet and withdrawn to M-PESA! Nakuru ladies we are winning! Thank you T CPI admin team.',
       category: 'CONFIRMED_WIN',
       region: 'Rift Valley',
       isVerifiedWin: true,
@@ -396,7 +396,7 @@ async function main() {
     {
       userEmail: 'victor.otieno@tcpi.co.ke',
       authorAlias: 'Victor O. (0744***991)',
-      content: 'Just cashed out KSh 50,000 to M-PESA. Real transparency, no delays. 10/10 combination matched cleanly!',
+      content: 'Just cashed out KSh 100,000 to M-PESA. Real transparency, no delays. 10/10 combination matched cleanly!',
       category: 'CONFIRMED_WIN',
       region: 'Nyanza',
       isVerifiedWin: true,
@@ -452,7 +452,7 @@ async function main() {
         version: gameConfig.version,
         targetNumbers,
         entryPriceKsh: 100,
-        prizeAmountKsh: 50000,
+        prizeAmountKsh: 100000,
         seededPlayers: kenyanPlayersData.length,
         seededComments: commentsToSeed.length,
       }),

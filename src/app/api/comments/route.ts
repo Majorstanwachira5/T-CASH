@@ -80,7 +80,7 @@ export async function GET(req: Request) {
           ? {
               entryReference: `TCPI-WIN-${c.maskedPhone.replace(/\D/g, '').slice(-4) || '8491'}`,
               isWinner: true,
-              prizeAwardedCents: '5000000',
+              prizeAwardedCents: '10000000',
             }
           : undefined,
       }));

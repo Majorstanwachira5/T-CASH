@@ -63,7 +63,7 @@ export default function AdminContent() {
   const [targetNumbersInput, setTargetNumbersInput] = useState<string>('7, 14, 21, 33, 42, 50, 63, 77, 88, 99');
   const [entryPriceKshInput, setEntryPriceKshInput] = useState<number>(100);
   const [repeatCreditKshInput, setRepeatCreditKshInput] = useState<number>(2);
-  const [prizeAmountKshInput, setPrizeAmountKshInput] = useState<number>(50000);
+  const [prizeAmountKshInput, setPrizeAmountKshInput] = useState<number>(100000);
   const [isPublishingConfig, setIsPublishingConfig] = useState(false);
 
   // Prize Claims State

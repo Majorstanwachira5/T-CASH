@@ -63,7 +63,7 @@ export default function LiveCommunityChat({ currentUser }: { currentUser?: any }
             isVerifiedWin: c.isVerifiedWin,
             createdAt: new Date(Date.now() - c.minutesAgo * 60000).toISOString(),
             associatedEntry: c.isVerifiedWin
-              ? { entryReference: 'TCPI-WIN-8491', isWinner: true, prizeAwardedCents: '5000000' }
+              ? { entryReference: 'TCPI-WIN-8491', isWinner: true, prizeAwardedCents: '10000000' }
               : undefined,
           }))
         );
@@ -188,7 +188,7 @@ export default function LiveCommunityChat({ currentUser }: { currentUser?: any }
                   {isWin && (
                     <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center gap-1">
                       <Trophy className="w-2.5 h-2.5 text-amber-300" />
-                      KSh 50,000 Winner
+                      KSh 100,000 Winner
                     </span>
                   )}
 

@@ -8,9 +8,9 @@ import LiveWinnerToast from '@/components/LiveWinnerToast';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'T CPI — 10-Box Mystery Number Draw | Win KSh 50,000',
+  title: 'T CPI — 10-Box Mystery Number Draw | Win KSh 100,000',
   description:
-    'Experience T CPI: Match 10 ordered mystery numbers to claim the KSh 50,000 grand prize. Server-verified RNG, Paystack M-PESA payments, and transparent audit logs.',
+    'Experience T CPI: Match 10 ordered mystery numbers to claim the KSh 100,000 grand prize. Server-verified RNG, Paystack M-PESA payments, and transparent audit logs.',
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',
